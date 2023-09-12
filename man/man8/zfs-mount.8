@@ -80,9 +80,12 @@ Allows mounting in non-empty
 See
 .Xr mount 8
 for more information.
-.It Fl a
-Mount all available ZFS file systems.
-Invoked automatically as part of the boot process if configured.
+.It Fl a Ar filesystem
+Mounts the specified ZFS file system and its children.
+If no filesystem is specified, then all available ZFS file systems are mounted; may be invoked automatically as part of the boot process if configured.
+.It Fl r Ar filesystem
+Mounts the specified ZFS file system and its children.
+Note: datasets with the `canmount=noauto` property will also be mounted.
 .It Ar filesystem
 Mount the specified filesystem.
 .It Fl o Ar options
