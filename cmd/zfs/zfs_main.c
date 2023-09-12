@@ -7094,7 +7094,7 @@ share_mount_one_cb(zfs_handle_t *zhp, void *arg)
 	int ret;
 
 	ret = share_mount_one(zhp, sms->sm_op, sms->sm_flags, sms->sm_proto,
-	    sms->sm_explicit, sms->sm_options);0
+	    sms->sm_explicit, sms->sm_options);
 
 	pthread_mutex_lock(&sms->sm_lock);
 	if (ret != 0)
