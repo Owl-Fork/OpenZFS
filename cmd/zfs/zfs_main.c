@@ -6731,6 +6731,7 @@ zfs_do_holds(int argc, char **argv)
 typedef struct get_all_state {
 	boolean_t	ga_verbose;
 	get_all_cb_t	*ga_cbp;
+	char	*ga_dataset;
 } get_all_state_t;
 
 static int
@@ -6769,6 +6770,15 @@ get_one_dataset(zfs_handle_t *zhp, void *data)
 		zfs_close(zhp);
 		return (0);
 	}
+
+	/*
+	 * Skip any datasets whos name doesn't have a prefix matching ga_dataset.
+	 */
+	if (state->ga_dataset != NULL && strncmp(zfs_get_name(zhp), state->ga_dataset, strlen(state->ga_dataset)) != 0) {
+		zfs_close(zhp);
+		return (0);
+	}
+	
 	libzfs_add_handle(state->ga_cbp, zhp);
 	assert(state->ga_cbp->cb_used <= state->ga_cbp->cb_alloc);
 
@@ -6776,11 +6786,12 @@ get_one_dataset(zfs_handle_t *zhp, void *data)
 }
 
 static void
-get_all_datasets(get_all_cb_t *cbp, boolean_t verbose)
+get_all_datasets(get_all_cb_t *cbp, boolean_t verbose, char dataset)
 {
 	get_all_state_t state = {
 	    .ga_verbose = verbose,
-	    .ga_cbp = cbp
+	    .ga_cbp = cbp,
+	    .ga_dataset = dataset
 	};
 
 	if (verbose)
@@ -6808,6 +6819,7 @@ typedef struct share_mount_state {
 	uint_t	sm_total; /* number of filesystems to process */
 	uint_t	sm_done; /* number of filesystems processed */
 	int	sm_status; /* -1 if any of the share/mount operations failed */
+	boolean_t	sm_explicit;
 } share_mount_state_t;
 
 /*
@@ -7082,7 +7094,7 @@ share_mount_one_cb(zfs_handle_t *zhp, void *arg)
 	int ret;
 
 	ret = share_mount_one(zhp, sms->sm_op, sms->sm_flags, sms->sm_proto,
-	    B_FALSE, sms->sm_options);
+	    sms->sm_explicit, sms->sm_options);0
 
 	pthread_mutex_lock(&sms->sm_lock);
 	if (ret != 0)
@@ -7133,17 +7145,21 @@ static int
 share_mount(int op, int argc, char **argv)
 {
 	int do_all = 0;
+	boolean_t recursive = B_FALSE;
 	boolean_t verbose = B_FALSE;
 	int c, ret = 0;
 	char *options = NULL;
 	int flags = 0;
 
 	/* check options */
-	while ((c = getopt(argc, argv, op == OP_MOUNT ? ":alvo:Of" : "al"))
+	while ((c = getopt(argc, argv, op == OP_MOUNT ? ":arlvo:Of" : "al"))
 	    != -1) {
 		switch (c) {
 		case 'a':
 			do_all = 1;
+			break;
+		case 'r':
+			recursive = B_TRUE;
 			break;
 		case 'v':
 			verbose = B_TRUE;
@@ -7186,7 +7202,7 @@ share_mount(int op, int argc, char **argv)
 	argv += optind;
 
 	/* check number of arguments */
-	if (do_all) {
+	if (do_all || recursive) {
 		enum sa_protocol protocol = SA_NO_PROTOCOL;
 
 		if (op == OP_SHARE && argc > 0) {
@@ -7195,14 +7211,21 @@ share_mount(int op, int argc, char **argv)
 			argv++;
 		}
 
-		if (argc != 0) {
-			(void) fprintf(stderr, gettext("too many arguments\n"));
+		if (argc > 1) {
+			(void) fprintf(stderr, gettext("usage: zfs mount -a <dataset>\n"));
 			usage(B_FALSE);
 		}
 
+		if (recursive && argc != 1) {
+			(void) fprintf(stderr, gettext("usage: zfs mount -r <dataset>\n"));
+			usage(B_FALSE);
+		}
+
+		const char *dataset = argc == 1 ? argv[0] : NULL;
+
 		start_progress_timer();
 		get_all_cb_t cb = { 0 };
-		get_all_datasets(&cb, verbose);
+		get_all_datasets(&cb, verbose, dataset);
 
 		if (cb.cb_used == 0) {
 			free(options);
@@ -7216,6 +7239,7 @@ share_mount(int op, int argc, char **argv)
 		share_mount_state.sm_options = options;
 		share_mount_state.sm_proto = protocol;
 		share_mount_state.sm_total = cb.cb_used;
+		share_mount_state.sm_explicit = recursive;
 		pthread_mutex_init(&share_mount_state.sm_lock, NULL);
 
 		/* For a 'zfs share -a' operation start with a clean slate. */
