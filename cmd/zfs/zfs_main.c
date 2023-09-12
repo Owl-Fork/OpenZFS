@@ -6786,7 +6786,7 @@ get_one_dataset(zfs_handle_t *zhp, void *data)
 }
 
 static void
-get_all_datasets(get_all_cb_t *cbp, boolean_t verbose, char dataset)
+get_all_datasets(get_all_cb_t *cbp, boolean_t verbose, const char* dataset)
 {
 	get_all_state_t state = {
 	    .ga_verbose = verbose,
