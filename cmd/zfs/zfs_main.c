@@ -7221,7 +7221,7 @@ share_mount(int op, int argc, char **argv)
 			usage(B_FALSE);
 		}
 
-		const char *dataset = argc == 1 ? argv[0] : NULL;
+		const char *dataset = (argv[0] != NULL) ? argv[0] : NULL;
 
 		start_progress_timer();
 		get_all_cb_t cb = { 0 };
